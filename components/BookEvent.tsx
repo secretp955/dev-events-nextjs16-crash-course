@@ -1,39 +1,24 @@
 'use client';
 
 import {useState} from 'react';
+import {createBooking} from "@/lib/actions/booking.actions";
+import posthog from "posthog-js";
 
-const BookEvent = ({ slug }: { slug: string }) => {
+const BookEvent = ({ eventId, slug }: { eventId: string, slug: string }) => {
     const [email, setEmail] = useState('');
     const [submitted, setSubmitted] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
-        setError(null);
 
-        try {
-            const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
-            const response = await fetch(`${BASE_URL}/api/events/${slug}/bookings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email }),
-            });
+        const { success } = await createBooking({ eventId, slug, email })
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to submit booking');
-            }
-
+        if(success) {
             setSubmitted(true);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
-        } finally {
-            setIsSubmitting(false);
+            posthog.capture('event_booked', { eventId, slug, email });
+        } else {
+            console.error('Booking creation failed');
+            posthog.captureException('Booking creation failed');
         }
     }
     
@@ -51,21 +36,14 @@ const BookEvent = ({ slug }: { slug: string }) => {
                             onChange={(e) => setEmail(e.target.value)}
                             id="email"
                             placeholder="Enter your email address"
-                            disabled={isSubmitting}
-                            required
                         />
                     </div>
-
-                    {error && (
-                        <p className="text-sm text-red-500 mt-2">{error}</p>
-                    )}
 
                     <button 
                         type="submit" 
                         className="button-submit"
-                        disabled={isSubmitting}
                     >
-                        {isSubmitting ? 'Submitting...' : 'Submit'}
+                        Submit
                     </button>
                 </form>
             )}
